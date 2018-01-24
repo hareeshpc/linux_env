@@ -1,0 +1,116 @@
+#!/bin/bash
+
+
+####
+# My Functions
+####
+
+function install_liquidprompt(){
+  # Make bin and .config directories
+  mkdir -p ~/bin ~/.config
+  git clone https://github.com/nojhan/liquidprompt.git ~/bin/liquidprompt
+  cp ~/bin/liquidprompt/liquidpromptrc-dist ~/.config/liquidpromptrc
+  local date=`date +%Y%m%d%H%M%S`
+  cp ~/.bashrc{,.$date}
+  cat >> ~/.bashrc << STOP
+
+# Hareesh. Added liquidprompt support at $date.
+# Only load Liquid Prompt in interactive shells, not from a script or from scp
+[[ \$- = *i* ]] && source ~/bin/liquidprompt/liquidprompt
+STOP
+
+# Customize the config.
+sed -i.bak 's/LP_ENABLE_VCS_ROOT=0/LP_ENABLE_VCS_ROOT=1/' ~/.config/liquidpromptrc
+
+echo "Done installing liquidprompt"
+}
+
+function install_fzf(){
+  git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+  ~/.fzf/install
+}
+
+function install_vim_plug(){
+  curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
+    https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+}
+
+function install_dotfiles(){
+  git clone https://github.com/hareeshpc/dotfiles.git ~/.dotfiles
+}
+
+function setup_dotfile_symlinks(){
+  ln -s ~/.dotfiles/.vimrc .vimrc
+  ln -s ~/.dotfiles/.tmux.conf .tmux.conf
+}
+
+
+##########################
+# Devstack functions
+# These are curated functions imported from Devstack
+##########################
+
+function passed {
+    local lineno
+    lineno=$(caller 0 | awk '{print $1}')
+    local function
+    function=$(caller 0 | awk '{print $2}')
+    local msg="$1"
+    if [ -z "$msg" ]; then
+        msg="OK"
+    fi
+    PASS=$((PASS+1))
+    echo "PASS: $function:L$lineno - $msg"
+}
+
+# fail a test, printing out MSG
+#  usage: failed message
+function failed {
+    local lineno
+    lineno=$(caller 0 | awk '{print $1}')
+    local function
+    function=$(caller 0 | awk '{print $2}')
+    local msg="$1"
+    FAILED_FUNCS+="$function:L$lineno\n"
+    echo "ERROR: $function:L$lineno!"
+    echo "   $msg"
+    ERROR=$((ERROR+1))
+}
+
+function _install_epel {
+    # NOTE: We always remove and install latest -- some environments
+    # use snapshot images, and if EPEL version updates they break
+    # unless we update them to latest version.
+    if sudo yum repolist enabled epel | grep -q 'epel'; then
+        uninstall_package epel-release || true
+    fi
+
+    # This trick installs the latest epel-release from a bootstrap
+    # repo, then removes itself (as epel-release installed the
+    # "real" repo).
+    #
+    # You would think that rather than this, you could use
+    # $releasever directly in .repo file we create below.  However
+    # RHEL gives a $releasever of "6Server" which breaks the path;
+    # see https://bugzilla.redhat.com/show_bug.cgi?id=1150759
+    cat <<EOF | sudo tee /etc/yum.repos.d/epel-bootstrap.repo
+[epel-bootstrap]
+name=Bootstrap EPEL
+mirrorlist=http://mirrors.fedoraproject.org/mirrorlist?repo=epel-7&arch=\$basearch
+failovermethod=priority
+enabled=0
+gpgcheck=0
+EOF
+    # Enable a bootstrap repo.  It is removed after finishing
+    # the epel-release installation.
+    is_package_installed yum-utils || install_package yum-utils
+    sudo yum-config-manager --enable epel-bootstrap
+    yum_install epel-release || \
+        die $LINENO "Error installing EPEL repo, cannot continue"
+    sudo rm -f /etc/yum.repos.d/epel-bootstrap.repo
+
+    # ... and also optional to be enabled
+    sudo yum-config-manager --enable rhel-7-server-optional-rpms
+}
+
+#################
