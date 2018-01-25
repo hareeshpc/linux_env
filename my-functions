@@ -5,13 +5,17 @@
 # My Functions
 ####
 
+function backup_bashrc(){
+  local date=`date +%Y%m%d%H%M%S`
+  cp ~/.bashrc{,.$date}
+}
+
 function install_liquidprompt(){
   # Make bin and .config directories
   mkdir -p ~/bin ~/.config
   git clone https://github.com/nojhan/liquidprompt.git ~/bin/liquidprompt
   cp ~/bin/liquidprompt/liquidpromptrc-dist ~/.config/liquidpromptrc
-  local date=`date +%Y%m%d%H%M%S`
-  cp ~/.bashrc{,.$date}
+  backup_bashrc
   cat >> ~/.bashrc << STOP
 
 # Hareesh. Added liquidprompt support at $date.
@@ -24,6 +28,19 @@ sed -i.bak 's/LP_ENABLE_VCS_ROOT=0/LP_ENABLE_VCS_ROOT=1/' ~/.config/liquidprompt
 
 echo "Done installing liquidprompt"
 }
+
+function install_cgrep(){
+  backup_bashrc
+  cat >> ~/.bashrc << STOP
+
+  function cgrep(){
+     local command=\$@
+     echo \${command}
+     grep --color=always \${command} | less -R
+  }
+STOP
+}
+
 
 function install_fzf(){
   git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
